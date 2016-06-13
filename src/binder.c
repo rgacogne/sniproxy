@@ -119,7 +119,7 @@ bind_socket(const struct sockaddr *addr, size_t addr_len) {
     msg.msg_control = control_buf;
     msg.msg_controllen = sizeof(control_buf);
 
-    int len = recvmsg(binder_sock, &msg, 0);
+    ssize_t len = recvmsg(binder_sock, &msg, 0);
     if (len < 0) {
         err("recvmsg: %s", strerror(errno));
         return -1;
@@ -127,7 +127,7 @@ bind_socket(const struct sockaddr *addr, size_t addr_len) {
 
     int fd = parse_ancillary_data(&msg);
     if (fd < 0)
-        err("binder returned: %.*s", len, data_buf);
+        err("binder returned: %.*s", (int) len, data_buf);
 
     return fd;
 }
@@ -146,7 +146,7 @@ static void
 binder_main(int sockfd) {
     for (;;) {
         char buffer[256];
-        int len = recv(sockfd, buffer, sizeof(buffer), 0);
+        ssize_t len = recv(sockfd, buffer, sizeof(buffer), 0);
         if (len < 0) {
             memset(buffer, 0, sizeof(buffer));
             snprintf(buffer, sizeof(buffer), "recv(): %s", strerror(errno));
@@ -155,7 +155,7 @@ binder_main(int sockfd) {
             /* socket was closed */
             close(sockfd);
             break;
-        } else if (len < (int)sizeof(struct binder_request)) {
+        } else if ((size_t) len < sizeof(struct binder_request)) {
             memset(buffer, 0, sizeof(buffer));
             strncpy(buffer, "Incomplete error:", sizeof(buffer));
             goto error;
@@ -174,7 +174,7 @@ binder_main(int sockfd) {
         int on = 1;
         setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
-        if (bind(fd, req->address, req->address_len) < 0) {
+        if (bind(fd, req->address, (socklen_t) req->address_len) < 0) {
             memset(buffer, 0, sizeof(buffer));
             snprintf(buffer, sizeof(buffer), "bind(): %s", strerror(errno));
             goto error;

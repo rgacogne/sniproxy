@@ -31,17 +31,15 @@
 #include "http.h"
 #include "protocol.h"
 
-#define SERVER_NAME_LEN 256
-
 static const char http_503[] =
     "HTTP/1.1 503 Service Temporarily Unavailable\r\n"
     "Content-Type: text/html\r\n"
     "Connection: close\r\n\r\n"
     "Backend not available";
 
-static int parse_http_header(const char *, size_t, char **);
-static int get_header(const char *, const char *, int, char **);
-static int next_header(const char **, int *);
+static ssize_t parse_http_header(const char *, size_t, char **);
+static ssize_t get_header(const char *, const char *, size_t, char **);
+static size_t next_header(const char **, size_t *);
 
 static const struct Protocol http_protocol_st = {
     .name = "http",
@@ -65,9 +63,9 @@ const struct Protocol *const http_protocol = &http_protocol_st;
  *  < -4 - Invalid HTTP request
  *
  */
-static int
+static ssize_t
 parse_http_header(const char* data, size_t data_len, char **hostname) {
-    int result, i;
+    ssize_t result, i;
 
     if (hostname == NULL)
         return -3;
@@ -91,9 +89,9 @@ parse_http_header(const char* data, size_t data_len, char **hostname) {
     return result;
 }
 
-static int
-get_header(const char *header, const char *data, int data_len, char **value) {
-    int len, header_len;
+static ssize_t
+get_header(const char *header, const char *data, size_t data_len, char **value) {
+    size_t len, header_len;
 
     header_len = strlen(header);
 
@@ -111,7 +109,7 @@ get_header(const char *header, const char *data, int data_len, char **value) {
             strncpy(*value, data + header_len, len - header_len);
             (*value)[len - header_len] = '\0';
 
-            return len - header_len;
+            return (ssize_t) (len - header_len);
         }
 
     /* If there is no data left after reading all the headers then we do not
@@ -122,9 +120,9 @@ get_header(const char *header, const char *data, int data_len, char **value) {
     return -2;
 }
 
-static int
-next_header(const char **data, int *len) {
-    int header_len;
+static size_t
+next_header(const char **data, size_t *len) {
+    size_t header_len;
 
     /* perhaps we can optimize this to reuse the value of header_len, rather
      * than scanning twice.

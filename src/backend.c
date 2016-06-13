@@ -29,6 +29,7 @@
 #include <sys/queue.h>
 #include <pcre.h>
 #include <assert.h>
+#include <limits.h>
 #include "backend.h"
 #include "address.h"
 #include "logger.h"
@@ -72,7 +73,12 @@ accept_backend_arg(struct Backend *backend, const char *arg) {
         }
 #endif
     } else if (address_port(backend->address) == 0 && is_numeric(arg)) {
-        address_set_port(backend->address, atoi(arg));
+        int port = atoi(arg);
+        if (port < 0 || port > 65535) {
+            err("Invalid port: %s", arg);
+            return -1;
+        }
+        address_set_port(backend->address, (uint16_t) port);
     } else {
         err("Unexpected table backend argument: %s", arg);
         return -1;
@@ -117,12 +123,14 @@ lookup_backend(const struct Backend_head *head, const char *name, size_t name_le
     if (name == NULL) {
         name = "";
         name_len = 0;
+    } else if (name_len > INT_MAX) {
+        return NULL;
     }
 
     STAILQ_FOREACH(iter, head, entries) {
         assert(iter->pattern_re != NULL);
         if (pcre_exec(iter->pattern_re, NULL,
-                    name, name_len, 0, 0, NULL, 0) >= 0)
+                    name, (int) name_len, 0, 0, NULL, 0) >= 0)
             return iter;
     }
 

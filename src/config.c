@@ -541,8 +541,12 @@ string_vector_len(char **vector) {
 static int
 append_to_string_vector(char ***vector_ptr, const char *string) {
     char **vector = NULL;
-    if (vector_ptr != NULL)
-        vector = *vector_ptr;
+    if (vector_ptr == NULL) {
+        err("%s: called with NULL vector_ptr", __func__);
+        return -1;
+    }
+
+    vector = *vector_ptr;
 
     size_t len = string_vector_len(vector);
     vector = realloc(vector, (len + 2) * sizeof(char *));
@@ -600,9 +604,9 @@ accept_resolver_search(struct ResolverConfig *resolver, char *search) {
 
 static int
 accept_resolver_mode(struct ResolverConfig *resolver, char *mode) {
-    for (int i = 0; i < sizeof(resolver_mode_names) / sizeof(resolver_mode_names[0]); i++)
+    for (size_t i = 0; i < sizeof(resolver_mode_names) / sizeof(resolver_mode_names[0]); i++)
         if (strncasecmp(resolver_mode_names[i], mode, strlen(mode)) == 0) {
-            resolver->mode = i;
+            resolver->mode = (int) i;
             return 1;
         }
 

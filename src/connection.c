@@ -83,7 +83,7 @@ static void abort_connection(struct Connection *);
 static void close_server_socket(struct Connection *, struct ev_loop *);
 static struct Connection *new_connection(struct ev_loop *);
 static void log_connection(struct Connection *);
-static void log_bad_request(struct Connection *, const char *, size_t, int);
+static void log_bad_request(struct Connection *, const char *, size_t, ssize_t);
 static void free_connection(struct Connection *);
 static void print_connection(FILE *, const struct Connection *);
 static void free_resolv_cb_data(struct resolv_cb_data *);
@@ -336,10 +336,10 @@ reactivate_watcher(struct ev_loop *loop, struct ev_io *w,
 static void
 parse_client_request(struct Connection *con) {
     const char *payload;
-    ssize_t payload_len = buffer_coalesce(con->client.buffer, (const void **)&payload);
+    size_t payload_len = buffer_coalesce(con->client.buffer, (const void **)&payload);
     char *hostname = NULL;
 
-    int result = con->listener->protocol->parse_packet(payload, payload_len, &hostname);
+    ssize_t result = con->listener->protocol->parse_packet(payload, payload_len, &hostname);
     if (result < 0) {
         char client[INET6_ADDRSTRLEN + 8];
 
@@ -354,7 +354,7 @@ parse_client_request(struct Connection *con) {
             warn("Request from %s did not include a hostname",
                     display_sockaddr(&con->client.addr, client, sizeof(client)));
         } else {
-            warn("Unable to parse request from %s: parse_packet returned %d",
+            warn("Unable to parse request from %s: parse_packet returned %zd",
                     display_sockaddr(&con->client.addr, client, sizeof(client)),
                     result);
 
@@ -369,7 +369,7 @@ parse_client_request(struct Connection *con) {
     }
 
     con->hostname = hostname;
-    con->hostname_len = result;
+    con->hostname_len = result > 0 ? (size_t) result : 0;
     con->state = PARSED;
 }
 
@@ -667,22 +667,24 @@ log_connection(struct Connection *con) {
 }
 
 static void
-log_bad_request(struct Connection *con __attribute__((unused)), const char *req, size_t req_len, int parse_result) {
+log_bad_request(struct Connection *con __attribute__((unused)), const char *req, size_t req_len, ssize_t parse_result) {
     size_t message_len = 64 + 6 * req_len;
     char *message = alloca(message_len);
     char *message_pos = message;
     char *message_end = message + message_len;
 
-    message_pos += snprintf(message_pos, message_end - message_pos,
+    message_pos += snprintf(message_pos, (size_t) (message_end - message_pos),
                             "parse_packet({");
 
     for (size_t i = 0; i < req_len; i++)
-        message_pos += snprintf(message_pos, message_end - message_pos,
+        message_pos += snprintf(message_pos, (size_t) (message_end - message_pos),
                                 "0x%02hhx, ", (unsigned char)req[i]);
 
-    message_pos -= 2;/* Delete the trailing ', ' */
-    message_pos += snprintf(message_pos, message_end - message_pos,
-                            "}, %ld, ...) = %d", req_len, parse_result);
+    if (req_len > 0)
+        message_pos -= 2;/* Delete the trailing ', ' */
+
+    message_pos += snprintf(message_pos, (size_t) (message_end - message_pos),
+                            "}, %ld, ...) = %zd", req_len, parse_result);
     debug("%s", message);
 }
 

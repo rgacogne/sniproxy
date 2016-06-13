@@ -219,10 +219,19 @@ accept_listener_arg(struct Listener *listener, char *arg) {
             err("Unable to initialize default address");
             return -1;
         }
-
-        address_set_port(listener->address, atoi(arg));
+        int port = atoi(arg);
+        if (port < 0 || port > 65535) {
+            err("Invalid port %s", arg);
+            return -1;
+        }
+        address_set_port(listener->address, (uint16_t) port);
     } else if (address_port(listener->address) == 0 && is_numeric(arg)) {
-        address_set_port(listener->address, atoi(arg));
+        int port = atoi(arg);
+        if (port < 0 || port > 65535) {
+            err("Invalid port %s", arg);
+            return -1;
+        }
+        address_set_port(listener->address, (uint16_t) port);
     } else {
         err("Invalid listener argument %s", arg);
     }

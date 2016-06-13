@@ -27,7 +27,7 @@
 #include "cfg_tokenizer.h"
 
 static void chomp_line(FILE *);
-static int next_word(FILE *, char *, int);
+static ssize_t next_word(FILE *, char *, size_t);
 
 
 /*
@@ -37,7 +37,7 @@ static int next_word(FILE *, char *, int);
 enum Token
 next_token(FILE *config, char *buffer, size_t buffer_len) {
     int ch;
-    int token_len;
+    ssize_t token_len;
 
     while ((ch = getc(config)) != EOF) {
         switch (ch) {
@@ -83,10 +83,10 @@ chomp_line(FILE *file) {
             return;
 }
 
-static int
-next_word(FILE *file, char *buffer, int buffer_len) {
+static ssize_t
+next_word(FILE *file, char *buffer, size_t buffer_len) {
     int ch;
-    int len = 0;
+    size_t len = 0;
     int quoted = 0;
     int escaped = 0;
 
@@ -120,7 +120,7 @@ next_word(FILE *file, char *buffer, int buffer_len) {
 
                     buffer[len] = '\0';
                     len++;
-                    return len;
+                    return (ssize_t) len;
                 }
                 /* fall through */
             default:

@@ -86,19 +86,19 @@ new_address(const char *hostname_or_ip) {
     /* Unix socket */
     memset(&sa, 0, sizeof(sa));
     if (strncmp("unix:", hostname_or_ip, 5) == 0) {
-        ((struct sockaddr_un *)&sa)->sun_family = AF_UNIX;
-        strncpy(((struct sockaddr_un *)&sa)->sun_path,
-                hostname_or_ip + 5, sizeof(sa) -
-                offsetof(struct sockaddr_un, sun_path));
+        struct sockaddr_un *sun = (struct sockaddr_un *) &sa;
+        sun->sun_family = AF_UNIX;
+        strncpy(sun->sun_path,
+                hostname_or_ip + 5, sizeof(sun->sun_path));
 
         return new_address_sa(
                 (struct sockaddr *)&sa, offsetof(struct sockaddr_un, sun_path) +
-                strlen(((struct sockaddr_un *)&sa)->sun_path) + 1);
+                (socklen_t) (strlen(sun->sun_path) + 1));
     }
 
     /* Trailing port */
     if ((port = strrchr(hostname_or_ip, ':')) != NULL && is_numeric(port + 1)) {
-        len = port - hostname_or_ip;
+        len = (size_t) (port - hostname_or_ip);
         int port_num = atoi(port + 1);
 
         if (len < sizeof(ip_buf) && port_num >= 0 && port_num <= 65535) {
@@ -107,7 +107,7 @@ new_address(const char *hostname_or_ip) {
 
             struct Address *addr = new_address(ip_buf);
             if (addr != NULL)
-                address_set_port(addr, port_num);
+                address_set_port(addr, (uint16_t) port_num);
 
             return addr;
         }
@@ -138,7 +138,7 @@ new_address(const char *hostname_or_ip) {
     /* [IPv6 address] */
     memset(&sa, 0, sizeof(sa));
     if (hostname_or_ip[0] == '[' && (port = strchr(hostname_or_ip, ']'))) {
-        len = port - hostname_or_ip - 1;
+        len = (size_t) (port - hostname_or_ip - 1);
 
         /* inet_pton() will not parse the IP correctly unless it is in a
          * separate string.
@@ -235,8 +235,8 @@ address_compare(const struct Address *addr_1, const struct Address *addr_2) {
     if (addr_1->type > addr_2->type)
         return 1;
 
-    int addr1_len = addr_1->len;
-    int addr2_len = addr_2->len;
+    size_t addr1_len = addr_1->len;
+    size_t addr2_len = addr_2->len;
     int result = memcmp(addr_1->data, addr_2->data, MIN(addr1_len, addr2_len));
 
     if (result == 0) { /* they match, find a tie breaker */
@@ -290,10 +290,10 @@ address_sa_len(const struct Address *addr) {
     if (addr->type != SOCKADDR)
         return 0;
 
-    return addr->len;
+    return (socklen_t) addr->len;
 }
 
-int
+uint16_t
 address_port(const struct Address *addr) {
     switch (addr->type) {
         case HOSTNAME:
@@ -323,12 +323,7 @@ address_port(const struct Address *addr) {
 }
 
 void
-address_set_port(struct Address *addr, int port) {
-    if (port < 0 || port > 65535) {
-        assert(0);
-        return;
-    }
-
+address_set_port(struct Address *addr, uint16_t port) {
     switch (addr->type) {
         case SOCKADDR:
             switch (address_sa(addr)->sa_family) {
@@ -440,7 +435,7 @@ is_numeric(const char *s) {
     if (s == NULL || *s == '\0')
         return 0;
 
-    int n = strtod(s, &p);
+    double n = strtod(s, &p);
     (void)n; /* unused */
 
     return *p == '\0'; /* entire string was numeric */
@@ -460,10 +455,10 @@ valid_hostname(const char *hostname) {
 
     const char *label = hostname;
     while (label < hostname + hostname_len) {
-        size_t label_len = hostname_len - (label - hostname);
+        size_t label_len = hostname_len - (size_t) (label - hostname);
         char *next_dot = strchr(label, '.');
         if (next_dot != NULL)
-            label_len = next_dot - label;
+            label_len = (size_t) (next_dot - label);
         assert(label + label_len <= hostname + hostname_len);
 
         if (label_len > 63 || label_len < 1)
